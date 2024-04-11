@@ -1,0 +1,106 @@
+version: "3.8"
+
+services:
+  spark:
+    container_name: spark
+    image: bitnami/spark:latest
+    volumes:
+      - spark-logs:/spark/logs
+      - java-home:/opt/bitnami/java
+      - spark-home:/opt/bitnami/spark
+      - app:/usr/src/app
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    networks:
+      - assignment5
+    restart: "unless-stopped"
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://0.0.0.0:8080"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 3
+
+  prepare-data:
+    build:
+      context: ./
+      dockerfile: prepareData.Dockerfile
+    container_name: da-prepare-data
+    depends_on:
+      - spark
+    networks:
+      - assignment5
+    volumes:
+      - java-home:/opt/bitnami/java
+      - app:/usr/src/app
+
+  pipeline:
+    build:
+      context: ./
+      dockerfile: pipeline.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      spark:
+        condition: service_started
+      prepare-data:
+        condition: service_completed_successfully
+    container_name: da-pipeline
+    networks:
+      - assignment5
+    volumes:
+      - java-home:/opt/bitnami/java
+      - app:/usr/src/app
+      - spark-home:/opt/bitnami/spark
+
+  db:
+    build:
+      context: ./
+      dockerfile: db.Dockerfile
+    container_name: da-db
+    image: postgres:13
+    command: -p 5432
+    environment:
+      PGUSER: ${POSTGRES_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-ecommerce}
+      PGDATA: /data/postgresql
+    volumes:
+      - postgres:/data/postgresql
+    ports:
+      - "5433:5432"
+    networks:
+      - assignment5
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    container_name: da-pgadmin4_container
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-francis@trestleacademyghana.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-secret}
+      PGADMIN_LISTEN_PORT: 1111
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    ports:
+      - "1111:1111"
+    networks:
+      - assignment5
+    restart: "unless-stopped"
+
+volumes:
+  postgres:
+  pgadmin:
+  spark-logs:
+  java-home:
+  spark-home:
+  app:
+
+networks:
+  assignment5:
+    driver: bridge
