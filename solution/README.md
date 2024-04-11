@@ -1,6 +1,3 @@
-step 1: prepare_data_files.py
-spark.read.format("jdbc").option("url", "jdbc:postgresql://localhost:5432/test").option("dbtable", "test_schema.test_table").option("user", "postgres").option("password", "francis").load()
-
 # E-commerce Data Pipeline Solution
 
 ## Overview
